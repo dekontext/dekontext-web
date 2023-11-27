@@ -1,13 +1,29 @@
-#lang web-server/insta
+#lang racket
 
-(require "models.rkt")
+(require web-server/servlet)
+
+(provide/contract (start (request? . -> . response?)))
+
+(require web-server/formlets
+         "models.rkt")
 
 (define (start request)
    (render-blog-page
     (initialize-blog!
      (build-path (find-system-path 'home-dir)
                  "the-blog.db"))
-     request))
+    request))
+
+(define new-post-formlet
+  (formlet
+   (#%# ,{input-string . => . title}
+        ,{input-string . => . body})
+   (values title body)))
+
+(define new-comment-formlet
+  (formlet
+   (#%# ,{input-string . => . comment})
+   (values comment)))
 
 (define (render-blog-page a-blog request)
   (define (response-generator embed/url)
@@ -18,17 +34,14 @@
                    (type "text/css")))
             (body (h1 "My blog")
                   ,(render-posts a-blog embed/url)
-                  (form ((action
-                          ,(embed/url insert-post-handler))
-                         (method "POST"))
-                   (input ((name "title")))
-                   (input ((name "body")))
+                  (form ([action
+                          ,(embed/url insert-post-handler)])
+                        ,@(formlet-display new-post-formlet)
                    (input ((type "submit"))))))))
   (define (insert-post-handler request)
-    (blog-insert-post!
-     a-blog
-     (extract-binding/single 'title (request-bindings request))
-     (extract-binding/single 'body (request-bindings request)))
+    (define-values (title body)
+      (formlet-process new-post-formlet request))
+    (blog-insert-post! a-blog title body)
     (render-blog-page a-blog (redirect/get)))
   (send/suspend/dispatch response-generator))
 
@@ -45,15 +58,17 @@
              (p ,(post-body a-post))
              ,(render-as-itemized-list
                (post-comments a-post))
-             (form ((action
-                     ,(embed/url insert-comment-handler)))
-                   (input ((name "comment")))
+             (form ([action
+                     ,(embed/url insert-comment-handler)])
+                   ,@(formlet-display new-comment-formlet)
                    (input ((type "submit"))))))))
   (define (parse-comment bindings)
     (extract-binding/single 'comment bindings))
   (define (insert-comment-handler a-request)
+    (define-values (comment)
+      (formlet-process new-comment-formlet a-request))
     (post-insert-comment!
-     a-blog a-post (parse-comment (request-bindings a-request)))
+     a-blog a-post comment)
     (render-post-detail-page a-blog a-post (redirect/get)))
   (send/suspend/dispatch response-generator))
 
@@ -86,4 +101,14 @@
 (define (render-as-item a-fragment)
   `(li ,a-fragment))
 
-(static-files-path "static")
+(require web-server/servlet-env)
+(serve/servlet start
+               #:launch-browser? #f
+               #:quit? #f
+               #:listen-ip #f
+               #:port 8008
+               #:extra-files-paths
+               (list (build-path (current-directory) "static"))
+               #:servlet-path
+               "/")
+
