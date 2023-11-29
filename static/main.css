@@ -5,3 +5,15 @@
 body {
     font-family: Arial;
 }
+
+.dkx * {
+    padding: 0.25rem;
+    margin: 0.25rem;
+}
+
+.dkx form {
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+}
+

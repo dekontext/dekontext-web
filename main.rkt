@@ -1,24 +1,42 @@
 #lang racket
 
-(require web-server/servlet)
+(require web-server/servlet
+         web-server/dispatch
+         racket/place/distributed)
 
 (provide/contract (start (request? . -> . response?)))
 
 (require web-server/formlets
          "models.rkt")
 
-(define (start request)
-   (render-blog-page
-    (initialize-blog!
-     (build-path (find-system-path 'home-dir)
-                 "the-blog.db"))
-    request))
+(define the-blog
+  (initialize-blog!
+          (build-path (find-system-path 'home-dir)
+                      "the-blog.db")))
 
-(define new-post-formlet
+(define (start request)
+  (define-values (blog-dispatch blog-url)
+    (dispatch-rules
+     [("") (lambda (req)
+             (render-blog-page the-blog req))]
+     [("posts" (string-arg)) render-post-detail-page]
+     [else render-blog-page]))
+  (blog-dispatch request))
+
+(define new-post-formlet-2
   (formlet
-   (#%# ,{input-string . => . title}
-        ,{input-string . => . body})
-   (values title body)))
+   (#%# (label "asod")
+        ,((to-string
+           (required
+            (text-input)))
+          . => . title)
+        (label "asod")
+        ,((to-string
+           (required
+            (text-input)))
+          . => . body))
+  (values title body)))
+
 
 (define new-comment-formlet
   (formlet
@@ -32,15 +50,15 @@
             (link ((rel "stylesheet")
                    (href "/main.css")
                    (type "text/css")))
-            (body (h1 "My blog")
+            (body ((class "dkx")) (h1 "My blog")
                   ,(render-posts a-blog embed/url)
                   (form ([action
                           ,(embed/url insert-post-handler)])
-                        ,@(formlet-display new-post-formlet)
+                        ,@(formlet-display new-post-formlet-2)
                    (input ((type "submit"))))))))
   (define (insert-post-handler request)
     (define-values (title body)
-      (formlet-process new-post-formlet request))
+      (formlet-process new-post-formlet-2 request))
     (blog-insert-post! a-blog title body)
     (render-blog-page a-blog (redirect/get)))
   (send/suspend/dispatch response-generator))
@@ -52,7 +70,7 @@
             (link ((rel "stylesheet")
                    (href "/main.css")
                    (type "text/css")))
-            (body
+            (body ((class "dkx"))
              (h1 "Post Details")
              (h2 ,(post-title a-post))
              (p ,(post-body a-post))
