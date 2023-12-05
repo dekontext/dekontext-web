@@ -19,8 +19,11 @@
     (dispatch-rules
      [("") (lambda (req)
              (render-blog-page the-blog req))]
-     [("posts" (string-arg)) render-post-detail-page]
-     [else render-blog-page]))
+     [("posts" (string-arg)) (lambda (req id)
+                               (let ((the-post (blog-post the-blog id)))
+                                render-post-detail-page the-blog the-post req))]
+     [else (lambda (req)
+             (render-blog-page the-blog req))]))
   (blog-dispatch request))
 
 (define new-post-formlet-2
@@ -51,7 +54,7 @@
                    (href "/main.css")
                    (type "text/css")))
             (body ((class "dkx")) (h1 "My blog")
-                  ,(render-posts a-blog embed/url)
+                  ,(render-posts a-blog)
                   (form ([action
                           ,(embed/url insert-post-handler)])
                         ,@(formlet-display new-post-formlet-2)
@@ -93,21 +96,19 @@
 ;; (define (render-comment comment)
 ;;   `(li ,comment))
 
-(define (render-post a-blog a-post embed/url)
-  (define (view-post-handler request)
-    (render-post-detail-page a-blog a-post request))
+(define (render-post a-blog a-post)
   `(div ((class "post"))
-        (a ((href ,(embed/url view-post-handler)))
+        (a ((href ,(string-append "posts/" (number->string (post-id a-post)))))
            ,(post-title a-post))
         (p ,(post-body a-post))
         (div ,(number->string (length (post-comments a-post)))
              " comment(s)")))
 
-(define (render-posts a-blog embed/url)
-  (define (render-post/embed/url a-post)
-    (render-post a-blog a-post embed/url))
+(define (render-posts a-blog)
+  (define (render-post-link a-post)
+    (render-post a-blog a-post))
   `(div ((class "posts"))
-        ,@(map render-post/embed/url (blog-posts a-blog))))
+        ,@(map render-post-link (blog-posts a-blog))))
 
 (define (can-parse-post? bindings)
   (and (exists-binding? 'title bindings)
@@ -127,6 +128,6 @@
                #:port 8008
                #:extra-files-paths
                (list (build-path (current-directory) "static"))
-               #:servlet-path
-               "/")
+               #:servlet-path "/"
+               #:servlet-regexp #rx"")
 

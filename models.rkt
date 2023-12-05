@@ -23,6 +23,11 @@
         (blog-db a-blog)
         "SELECT id FROM posts")))
 
+(define (blog-post a-blog id)
+  (query-row
+   (blog-db a-blog)
+   "SELECT * FROM posts WHERE id = $1" id))
+
 (define (initialize-blog! home)
   (define db (sqlite3-connect #:database home #:mode 'create))
   (define the-blog (blog db))
@@ -80,7 +85,7 @@
 ;; Data ;;
 ;;;;;;;;;;
 
-(provide blog? blog-posts
-         post? post-title post-body post-comments
+(provide blog? blog-posts blog-post
+         post? post-title post-body post-comments post-id
          initialize-blog!
          blog-insert-post! post-insert-comment!)
